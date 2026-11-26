@@ -1,0 +1,19 @@
+{
+  "name": "@solaris/solar-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SOLARIS solar sizing engine — pure TypeScript, no framework or database dependencies.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "vitest": "^5.1.2"
+  }
+}

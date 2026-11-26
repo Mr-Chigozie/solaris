@@ -1,0 +1,30 @@
+{
+  "name": "solaris",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SOLARIS — Solar Intelligence & Management Platform (Nigeria-first)",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web -c green,yellow \"npm run dev -w @solaris/api\" \"npm run dev -w @solaris/web\"",
+    "dev:api": "npm run dev -w @solaris/api",
+    "dev:web": "npm run dev -w @solaris/web",
+    "build": "npm run build -w @solaris/api && npm run build -w @solaris/web",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:generate": "npm run db:generate -w @solaris/api",
+    "db:migrate": "npm run db:migrate -w @solaris/api",
+    "db:seed": "npm run db:seed -w @solaris/api",
+    "db:studio": "npm run db:studio -w @solaris/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "6.0.3"
+  }
+}

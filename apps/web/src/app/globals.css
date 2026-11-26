@@ -1,0 +1,132 @@
+@import 'tailwindcss';
+
+/*
+ * SOLARIS design tokens — premium energy-tech.
+ * Deep navy/charcoal foundation, emerald for energy & health, solar yellow for
+ * generation & highlights. Dark-first; the product is used for long dashboard sessions.
+ */
+/* Brand defaults — overridden at runtime from the admin Branding settings. */
+:root {
+  --brand-primary: #f8d531;
+  --brand-secondary: #34d399;
+  --brand-bg: #04070d;
+  --brand-font: var(--font-manrope);
+  --brand-radius: 1.5rem;
+  --brand-field: 0.75rem;
+  --brand-pill: 9999px;
+}
+
+/* Brand-driven colour scales, derived from the two admin-chosen colours. */
+@theme inline {
+  --color-ink-950: var(--brand-bg);
+  --color-sun-100: color-mix(in oklab, var(--brand-primary) 25%, white);
+  --color-sun-200: color-mix(in oklab, var(--brand-primary) 45%, white);
+  --color-sun-300: color-mix(in oklab, var(--brand-primary) 75%, white);
+  --color-sun-400: var(--brand-primary);
+  --color-sun-500: color-mix(in oklab, var(--brand-primary) 85%, black);
+  --color-volt-200: color-mix(in oklab, var(--brand-secondary) 50%, white);
+  --color-volt-300: color-mix(in oklab, var(--brand-secondary) 72%, white);
+  --color-volt-400: var(--brand-secondary);
+  --color-volt-500: color-mix(in oklab, var(--brand-secondary) 85%, black);
+  --color-volt-600: color-mix(in oklab, var(--brand-secondary) 70%, black);
+}
+
+@theme {
+  --font-sans: var(--brand-font), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+
+  --color-ink-900: #070c16;
+  --color-ink-850: #0b1220;
+  --color-ink-800: #0f1829;
+  --color-ink-700: #172238;
+  --color-ink-600: #22304a;
+  --color-ink-400: #7c8aa5;
+  --color-ink-300: #a3afc4;
+  --color-ink-100: #e7edf7;
+
+  --radius-4xl: 2rem;
+
+  --animate-flow: flow 1.2s linear infinite;
+  --animate-pulse-soft: pulse-soft 2.4s ease-in-out infinite;
+
+  @keyframes flow {
+    to { stroke-dashoffset: -24; }
+  }
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-ink-950 text-ink-100 antialiased;
+    font-feature-settings: 'tnum' 1, 'ss01' 1;
+  }
+  ::selection {
+    @apply bg-volt-500/30 text-white;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-sun-400;
+  }
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+}
+
+/* Glass card used throughout dashboards and the calculator. */
+@utility card {
+  @apply rounded-[var(--brand-radius)] border border-white/[0.07] bg-gradient-to-b from-white/[0.045] to-white/[0.015] shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_20px_50px_-24px_rgba(0,0,0,0.8)] backdrop-blur-xl;
+}
+
+@utility field {
+  @apply w-full rounded-[var(--brand-field)] border border-white/10 bg-ink-900/80 px-3.5 py-2.5 text-sm text-ink-100 placeholder:text-ink-400 transition focus:border-sun-400/60 focus:ring-2 focus:ring-sun-400/20 focus:outline-none;
+}
+
+@utility label {
+  @apply mb-1.5 block text-xs font-medium tracking-wide text-ink-300;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-[var(--brand-pill)] px-5 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50;
+}
+
+@utility btn-primary {
+  @apply bg-sun-400 text-ink-950 shadow-[0_8px_30px_-8px_color-mix(in_oklab,var(--brand-primary)_55%,transparent)] hover:bg-sun-300;
+}
+
+@utility btn-secondary {
+  @apply border border-white/12 bg-white/[0.04] text-ink-100 hover:bg-white/[0.08];
+}
+
+@utility btn-ghost {
+  @apply text-ink-300 hover:bg-white/[0.05] hover:text-ink-100;
+}
+
+@utility pill {
+  @apply inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-ink-300;
+}
+
+@utility glow-grid {
+  background-image:
+    radial-gradient(ellipse 60% 50% at 50% 0%, color-mix(in oklab, var(--brand-secondary) 16%, transparent), transparent 70%),
+    radial-gradient(ellipse 40% 35% at 85% 20%, color-mix(in oklab, var(--brand-primary) 10%, transparent), transparent 70%),
+    linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: auto, auto, 56px 56px, 56px 56px;
+}
+
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+  .no-print { display: none !important; }
+  .card { border-color: #ddd !important; background: #fff !important; box-shadow: none !important; }
+}

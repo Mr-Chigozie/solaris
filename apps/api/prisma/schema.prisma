@@ -1,0 +1,916 @@
+// SOLARIS — PostgreSQL schema
+//
+// SOLARIS is an OPEN marketplace and operating platform. SOLARIS itself is a
+// participant (an Organization with isPlatformOwned = true), not the gatekeeper:
+// any verified business can run a storefront, publish services, quote, sell and
+// manage projects here.
+//
+// Three layers
+//   Commerce     — Product, Service, Order, Payment, Review
+//   Operations   — Conversation/Message, Quotation, Project, Installation, Maintenance
+//   Intelligence — EnergyAudit, SolarDesign, EnergyReading
+//
+// Multi-tenancy
+// - A User is a person. They can be a customer AND a staff member of any number
+//   of Organizations (businesses), with permissions scoped to each one.
+// - Business-owned records carry organizationId; every access is checked
+//   against OrganizationMember for that organization.
+//
+// Conventions
+// - UUID keys, createdAt/updatedAt, snake_case tables, money Decimal(14,2) NGN.
+// - Catalogue products (what is sold) ≠ Installations (what a customer owns).
+// - Estimate ≠ installer-approved design ≠ measured performance.
+// - Commercial documents (quotation revisions, order items) snapshot prices — never live-linked.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ═════════════════════════════════════════════════════════════ enums
+
+/// Platform-level roles. CONSUMER is everyone's default; INSTALLER/VENDOR mark
+/// people who run or work for such businesses (drives default dashboards).
+enum UserRole {
+  CONSUMER
+  INSTALLER
+  VENDOR
+  ADMIN
+}
+
+/// What a business does. A business may be several (e.g. sells AND installs).
+enum OrganizationType {
+  VENDOR
+  INSTALLER
+  ENERGY_COMPANY
+}
+
+/// Role of a user *within one organisation*. Never implies rights in another.
+enum OrgMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+/// Fine-grained staff permissions. OWNER and ADMIN implicitly hold all of them.
+enum OrgPermission {
+  MANAGE_PROFILE
+  MANAGE_MEMBERS
+  MANAGE_PRODUCTS
+  MANAGE_INVENTORY
+  MANAGE_SERVICES
+  MESSAGE_CUSTOMERS
+  MANAGE_QUOTATIONS
+  MANAGE_ORDERS
+  MANAGE_PROJECTS
+  VIEW_ANALYTICS
+  MANAGE_BILLING
+}
+
+/// Scoped powers for platform staff (users with the ADMIN role).
+/// SUPER_ADMIN implicitly holds every other admin role.
+enum AdminRole {
+  SUPER_ADMIN
+  CONTENT_EDITOR
+  OPERATIONS
+  MARKETPLACE_CURATOR
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum DesignStatus {
+  DRAFT
+  ESTIMATED
+  REVIEW_REQUESTED
+  INSTALLER_APPROVED
+  ARCHIVED
+}
+
+enum ProductCategory {
+  SOLAR_PANEL
+  INVERTER
+  BATTERY
+  CHARGE_CONTROLLER
+  MOUNTING
+  CABLE_AND_PROTECTION
+  ACCESSORY
+}
+
+enum ListingStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ServiceCategory {
+  SITE_SURVEY
+  SYSTEM_DESIGN
+  INSTALLATION
+  MAINTENANCE
+  REPAIR
+  BATTERY_REPLACEMENT
+  ELECTRICAL_WORKS
+  CONSULTATION
+}
+
+enum PriceType {
+  FIXED
+  FROM
+  ON_QUOTE
+}
+
+/// What a conversation is about — links messaging to the rest of the platform.
+enum ConversationContext {
+  GENERAL
+  PRODUCT
+  SERVICE
+  DESIGN
+  QUOTATION
+  ORDER
+  PROJECT
+}
+
+enum QuotationStatus {
+  REQUESTED
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  WITHDRAWN
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PROCESSING
+  READY
+  SHIPPED
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  DISPUTED
+}
+
+enum PaymentProvider {
+  PAYSTACK
+  FLUTTERWAVE
+  BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  INITIATED
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum ProjectStatus {
+  REQUESTED
+  QUOTED
+  APPROVED
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  SKIPPED
+}
+
+enum ReviewStatus {
+  PUBLISHED
+  HIDDEN
+  FLAGGED
+}
+
+/// Where an energy figure came from. Only DEVICE readings are "measured".
+enum ReadingSource {
+  MANUAL
+  DEMO
+  DEVICE
+}
+
+enum SubscriptionPlan {
+  FREE
+  PLUS
+  INSTALLER
+  BUSINESS
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+}
+
+// ═════════════════════════════════════════════════════════════ identity & tenancy
+
+model User {
+  id              String     @id @default(uuid()) @db.Uuid
+  email           String     @unique
+  passwordHash    String?
+  firstName       String
+  lastName        String
+  phone           String?    @unique
+  state           String?
+  roles           UserRole[] @default([CONSUMER])
+  /// Only meaningful when roles contains ADMIN.
+  adminRoles      AdminRole[]
+  isActive        Boolean    @default(true)
+  emailVerifiedAt DateTime?
+  termsAcceptedAt DateTime?
+  lastLoginAt     DateTime?
+
+  memberships          OrganizationMember[]
+  refreshTokens        RefreshToken[]
+  audits               EnergyAudit[]
+  designs              SolarDesign[]
+  quotations           Quotation[]          @relation("CustomerQuotations")
+  orders               Order[]              @relation("CustomerOrders")
+  projects             Project[]            @relation("CustomerProjects")
+  conversations        Conversation[]       @relation("CustomerConversations")
+  messagesSent         Message[]
+  reviews              Review[]
+  auditLogs            AuditLog[]
+  settingRevisions     SiteSettingRevision[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("users")
+}
+
+/// Rotating refresh tokens. Only a SHA-256 hash is stored. Tokens in one login
+/// session share a familyId; reuse of a rotated token revokes the whole family.
+model RefreshToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  tokenHash  String    @unique
+  familyId   String    @db.Uuid
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  replacedBy String?   @db.Uuid
+  userAgent  String?
+  ip         String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+/// A business tenant: storefront, service provider, or both.
+model Organization {
+  id               String             @id @default(uuid()) @db.Uuid
+  name             String
+  slug             String             @unique
+  types            OrganizationType[]
+  /// SOLARIS's own trading entity — a marketplace participant like any other.
+  isPlatformOwned  Boolean            @default(false)
+  verification     VerificationStatus @default(PENDING)
+  verificationNote String?
+  verifiedAt       DateTime?
+
+  // Public storefront / profile
+  tagline      String?
+  description  String?
+  logoUrl      String?
+  coverUrl     String?
+  website      String?
+  email        String?
+  phone        String?
+  whatsapp     String?
+  state        String?
+  city         String?
+  address      String?
+  /// States this business delivers to or installs in.
+  serviceStates String[]
+  cacNumber    String? /// Corporate Affairs Commission registration number
+  yearsInBusiness Int?
+
+  // Admin curation
+  isFeatured   Boolean   @default(false)
+  hiddenAt     DateTime?
+  hiddenReason String?
+
+  // Denormalised reputation (recomputed from published reviews)
+  ratingAverage Decimal? @db.Decimal(3, 2)
+  ratingCount   Int      @default(0)
+
+  memberships   OrganizationMember[]
+  products      Product[]
+  services      Service[]
+  conversations Conversation[]
+  quotations    Quotation[]          @relation("SellerQuotations")
+  orders        Order[]              @relation("SellerOrders")
+  projects      Project[]
+  reviews       Review[]
+  subscription  Subscription?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([verification])
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String          @id @default(uuid()) @db.Uuid
+  userId         String          @db.Uuid
+  organizationId String          @db.Uuid
+  role           OrgMemberRole   @default(MEMBER)
+  /// Only meaningful for MEMBER — OWNER/ADMIN hold every permission.
+  permissions    OrgPermission[]
+  title          String? /// e.g. "Lead technician", "Sales"
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@map("organization_members")
+}
+
+model Subscription {
+  id                 String             @id @default(uuid()) @db.Uuid
+  organizationId     String             @unique @db.Uuid
+  plan               SubscriptionPlan   @default(FREE)
+  status             SubscriptionStatus @default(ACTIVE)
+  currentPeriodEnd   DateTime?
+  providerCustomerId String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("subscriptions")
+}
+
+// ═════════════════════════════════════════════════════════════ intelligence
+
+model Appliance {
+  id                   String  @id /// stable catalogue slug, e.g. "ac-1-5hp"
+  name                 String
+  category             String
+  defaultWatts         Decimal @db.Decimal(10, 2)
+  surgeFactor          Decimal @default(1) @db.Decimal(4, 2)
+  typicalHoursPerDay   Decimal @db.Decimal(5, 2)
+  typicalNightFraction Decimal @db.Decimal(4, 3)
+  note                 String?
+  isActive             Boolean @default(true)
+  sortOrder            Int     @default(0)
+
+  auditItems AuditItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("appliances")
+}
+
+model EnergyAudit {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid
+  state         String
+  city          String?
+  gridAvailable Boolean
+  backupHours   Decimal  @db.Decimal(5, 2)
+  autonomyDays  Decimal  @db.Decimal(4, 2)
+  dailyKwh      Decimal? @db.Decimal(12, 3)
+  peakLoadW     Decimal? @db.Decimal(12, 2)
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items   AuditItem[]
+  designs SolarDesign[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("energy_audits")
+}
+
+model AuditItem {
+  id               String   @id @default(uuid()) @db.Uuid
+  auditId          String   @db.Uuid
+  applianceId      String?
+  applianceName    String
+  quantity         Int
+  wattage          Decimal  @db.Decimal(10, 2)
+  hoursPerDay      Decimal  @db.Decimal(5, 2)
+  nightHoursPerDay Decimal? @db.Decimal(5, 2)
+  simultaneous     Boolean  @default(true)
+  surgeFactor      Decimal? @db.Decimal(4, 2)
+
+  audit     EnergyAudit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  appliance Appliance?  @relation(fields: [applianceId], references: [id])
+
+  @@index([auditId])
+  @@map("audit_items")
+}
+
+/// A generated system configuration. `input`, `result` and `assumptions` are
+/// frozen with engine and data versions so the design is always reproducible.
+model SolarDesign {
+  id            String       @id @default(uuid()) @db.Uuid
+  userId        String       @db.Uuid
+  auditId       String       @db.Uuid
+  title         String
+  status        DesignStatus @default(ESTIMATED)
+  engineVersion String
+  dataVersion   String
+  input         Json
+  assumptions   Json
+  result        Json
+
+  dailyKwh      Decimal @db.Decimal(12, 3)
+  arrayKw       Decimal @db.Decimal(10, 3)
+  panelCount    Int
+  batteryKwh    Decimal @db.Decimal(10, 2)
+  inverterKva   Decimal @db.Decimal(10, 2)
+  estimatedCost Decimal @db.Decimal(14, 2)
+  currency      String  @default("NGN")
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  audit      EnergyAudit       @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  components DesignComponent[]
+  quotations Quotation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@map("solar_designs")
+}
+
+model DesignComponent {
+  id        String          @id @default(uuid()) @db.Uuid
+  designId  String          @db.Uuid
+  productId String?         @db.Uuid
+  category  ProductCategory
+  quantity  Int
+  /// Product details at selection time (price, specs) — never live-linked.
+  snapshot  Json
+
+  design  SolarDesign @relation(fields: [designId], references: [id], onDelete: Cascade)
+  product Product?    @relation(fields: [productId], references: [id])
+
+  @@map("design_components")
+}
+
+// ═════════════════════════════════════════════════════════════ commerce
+
+model Product {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @db.Uuid
+  slug           String
+  name           String
+  category       ProductCategory
+  brand          String?
+  model          String?
+  sku            String?
+  description    String?
+  price          Decimal?        @db.Decimal(14, 2)
+  currency       String          @default("NGN")
+  /// Structured datasheet values (e.g. watts, voltage, kVA, Ah, chemistry, warrantyYears).
+  specifications Json
+  images         String[]
+  stockQuantity  Int             @default(0)
+  trackInventory Boolean         @default(true)
+  status         ListingStatus   @default(DRAFT)
+  promotedUntil  DateTime?
+  isFeatured     Boolean         @default(false)
+  hiddenAt       DateTime?
+  hiddenReason   String?
+
+  organization     Organization      @relation(fields: [organizationId], references: [id])
+  designComponents DesignComponent[]
+  orderItems       OrderItem[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([organizationId, slug])
+  @@index([category, status])
+  @@index([organizationId, status])
+  @@map("products")
+}
+
+/// A service an installer (or any business) offers: survey, installation, maintenance…
+model Service {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @db.Uuid
+  title          String
+  category       ServiceCategory
+  description    String?
+  priceType      PriceType       @default(ON_QUOTE)
+  price          Decimal?        @db.Decimal(14, 2)
+  currency       String          @default("NGN")
+  status         ListingStatus   @default(DRAFT)
+  promotedUntil  DateTime?
+  isFeatured     Boolean         @default(false)
+  hiddenAt       DateTime?
+  hiddenReason   String?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  orderItems   OrderItem[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([category, status])
+  @@index([organizationId, status])
+  @@map("services")
+}
+
+/// Quote requested by a customer, issued by any business (vendor or installer).
+model Quotation {
+  id              String          @id @default(uuid()) @db.Uuid
+  reference       String          @unique
+  customerId      String          @db.Uuid
+  organizationId  String          @db.Uuid
+  designId        String?         @db.Uuid
+  conversationId  String?         @db.Uuid
+  status          QuotationStatus @default(REQUESTED)
+  currentRevision Int             @default(0)
+  expiresAt       DateTime?
+  acceptedAt      DateTime?
+
+  customer     User                @relation("CustomerQuotations", fields: [customerId], references: [id])
+  organization Organization        @relation("SellerQuotations", fields: [organizationId], references: [id])
+  design       SolarDesign?        @relation(fields: [designId], references: [id])
+  conversation Conversation?       @relation(fields: [conversationId], references: [id])
+  revisions    QuotationRevision[]
+  order        Order?
+  project      Project?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([organizationId, status])
+  @@map("quotations")
+}
+
+/// Immutable. A price change creates a new revision; sent revisions are never edited.
+model QuotationRevision {
+  id          String  @id @default(uuid()) @db.Uuid
+  quotationId String  @db.Uuid
+  revision    Int
+  /// [{ productId?, serviceId?, description, quantity, unitPrice, lineTotal, snapshot }]
+  lineItems   Json
+  subtotal    Decimal @db.Decimal(14, 2)
+  discount    Decimal @default(0) @db.Decimal(14, 2)
+  tax         Decimal @default(0) @db.Decimal(14, 2)
+  total       Decimal @db.Decimal(14, 2)
+  currency    String  @default("NGN")
+  notes       String?
+  createdById String? @db.Uuid
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([quotationId, revision])
+  @@map("quotation_revisions")
+}
+
+/// One order = one customer buying from one business. A cart spanning several
+/// sellers becomes several orders, so each business manages only its own.
+model Order {
+  id                String      @id @default(uuid()) @db.Uuid
+  reference         String      @unique
+  customerId        String      @db.Uuid
+  organizationId    String      @db.Uuid
+  quotationId       String?     @unique @db.Uuid
+  status            OrderStatus @default(PENDING_PAYMENT)
+  subtotal          Decimal     @db.Decimal(14, 2)
+  deliveryFee       Decimal     @default(0) @db.Decimal(14, 2)
+  total             Decimal     @db.Decimal(14, 2)
+  currency          String      @default("NGN")
+  /// Marketplace commission captured at order time (rate can differ per plan).
+  commissionRate    Decimal     @default(0) @db.Decimal(5, 4)
+  commissionAmount  Decimal     @default(0) @db.Decimal(14, 2)
+  deliveryAddress   Json?
+  notes             String?
+
+  customer     User          @relation("CustomerOrders", fields: [customerId], references: [id])
+  organization Organization  @relation("SellerOrders", fields: [organizationId], references: [id])
+  quotation    Quotation?    @relation(fields: [quotationId], references: [id])
+  items        OrderItem[]
+  payments     Payment[]
+  events       OrderEvent[]
+  review       Review?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId, createdAt])
+  @@index([organizationId, status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  orderId     String   @db.Uuid
+  productId   String?  @db.Uuid
+  serviceId   String?  @db.Uuid
+  description String
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(14, 2)
+  lineTotal   Decimal  @db.Decimal(14, 2)
+  /// Listing as it was when ordered.
+  snapshot    Json
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
+  service Service? @relation(fields: [serviceId], references: [id])
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+/// Status timeline for an order — what both customer and seller see.
+model OrderEvent {
+  id        String       @id @default(uuid()) @db.Uuid
+  orderId   String       @db.Uuid
+  status    OrderStatus
+  note      String?
+  actorId   String?      @db.Uuid
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
+  @@map("order_events")
+}
+
+/// Funds are handled by a licensed provider; SOLARIS never holds card data.
+model Payment {
+  id          String          @id @default(uuid()) @db.Uuid
+  orderId     String          @db.Uuid
+  provider    PaymentProvider
+  providerRef String          @unique
+  amount      Decimal         @db.Decimal(14, 2)
+  currency    String          @default("NGN")
+  status      PaymentStatus   @default(INITIATED)
+  /// Verified webhook payloads, kept for reconciliation.
+  webhookData Json?
+  paidAt      DateTime?
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@map("payments")
+}
+
+/// Reviews are tied to a completed order or project, so only real customers can rate.
+model Review {
+  id             String       @id @default(uuid()) @db.Uuid
+  authorId       String       @db.Uuid
+  organizationId String       @db.Uuid
+  orderId        String?      @unique @db.Uuid
+  projectId      String?      @unique @db.Uuid
+  rating         Int /// 1–5, enforced in application validation
+  title          String?
+  body           String?
+  sellerResponse String?
+  status         ReviewStatus @default(PUBLISHED)
+
+  author       User         @relation(fields: [authorId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  order        Order?       @relation(fields: [orderId], references: [id])
+  project      Project?     @relation(fields: [projectId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId, status])
+  @@map("reviews")
+}
+
+// ═════════════════════════════════════════════════════════════ operations
+
+/// Customer ↔ business thread. Any staff member of the business with
+/// MESSAGE_CUSTOMERS can reply. Optionally anchored to a product, design, quote…
+model Conversation {
+  id             String              @id @default(uuid()) @db.Uuid
+  customerId     String              @db.Uuid
+  organizationId String              @db.Uuid
+  subject        String?
+  contextType    ConversationContext @default(GENERAL)
+  contextId      String?             @db.Uuid
+  lastMessageAt  DateTime            @default(now())
+  customerReadAt DateTime?
+  businessReadAt DateTime?
+
+  customer     User         @relation("CustomerConversations", fields: [customerId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  messages     Message[]
+  quotations   Quotation[]
+
+  createdAt DateTime @default(now())
+
+  @@index([customerId, lastMessageAt])
+  @@index([organizationId, lastMessageAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @db.Uuid
+  senderId       String   @db.Uuid
+  /// true when sent on behalf of the business (by a staff member)
+  fromBusiness   Boolean
+  body           String
+  attachments    String[]
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+model Project {
+  id             String        @id @default(uuid()) @db.Uuid
+  customerId     String        @db.Uuid
+  organizationId String        @db.Uuid
+  quotationId    String?       @unique @db.Uuid
+  name           String
+  status         ProjectStatus @default(REQUESTED)
+  state          String
+  address        String?
+  scheduledFor   DateTime?
+  completedAt    DateTime?
+
+  customer     User               @relation("CustomerProjects", fields: [customerId], references: [id])
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  quotation    Quotation?         @relation(fields: [quotationId], references: [id])
+  milestones   ProjectMilestone[]
+  installation Installation?
+  review       Review?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([organizationId, status])
+  @@map("projects")
+}
+
+model ProjectMilestone {
+  id          String          @id @default(uuid()) @db.Uuid
+  projectId   String          @db.Uuid
+  title       String
+  sortOrder   Int             @default(0)
+  status      MilestoneStatus @default(PENDING)
+  dueAt       DateTime?
+  completedAt DateTime?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_milestones")
+}
+
+/// An installed solar asset owned by a customer (not a catalogue product).
+model Installation {
+  id             String    @id @default(uuid()) @db.Uuid
+  projectId      String    @unique @db.Uuid
+  commissionedAt DateTime?
+  arrayKw        Decimal?  @db.Decimal(10, 3)
+  batteryKwh     Decimal?  @db.Decimal(10, 2)
+  inverterKva    Decimal?  @db.Decimal(10, 2)
+  /// Serial numbers / warranty per installed component.
+  components     Json?
+
+  project     Project             @relation(fields: [projectId], references: [id])
+  readings    EnergyReading[]
+  maintenance MaintenanceRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("installations")
+}
+
+model EnergyReading {
+  id             String        @id @default(uuid()) @db.Uuid
+  installationId String        @db.Uuid
+  recordedAt     DateTime
+  generationKwh  Decimal       @db.Decimal(12, 3)
+  consumptionKwh Decimal       @db.Decimal(12, 3)
+  batteryPercent Decimal?      @db.Decimal(5, 2)
+  source         ReadingSource @default(MANUAL)
+
+  installation Installation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+
+  @@index([installationId, recordedAt])
+  @@map("energy_readings")
+}
+
+model MaintenanceRecord {
+  id              String    @id @default(uuid()) @db.Uuid
+  installationId  String    @db.Uuid
+  description     String
+  serviceDate     DateTime
+  nextServiceDate DateTime?
+  cost            Decimal?  @db.Decimal(14, 2)
+
+  installation Installation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([installationId])
+  @@map("maintenance_records")
+}
+
+// ═════════════════════════════════════════════════════════════ platform
+
+/// Append-only record of security, administrative and financial actions.
+model AuditLog {
+  id         String  @id @default(uuid()) @db.Uuid
+  actorId    String? @db.Uuid
+  action     String /// e.g. "auth.register", "org.verify"
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  ip         String?
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@map("audit_logs")
+}
+
+/// Admin-controlled platform configuration (site content, branding, SEO,
+/// feature toggles, reference prices…). `value` is validated against the
+/// schema for its key in @solaris/validation before it is stored.
+model SiteSetting {
+  key         String   @id
+  value       Json
+  version     Int      @default(1)
+  updatedById String?  @db.Uuid
+
+  revisions SiteSettingRevision[]
+
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
+/// Every saved version of a setting — enables history and one-click restore.
+model SiteSettingRevision {
+  id        String  @id @default(uuid()) @db.Uuid
+  key       String
+  version   Int
+  value     Json
+  authorId  String? @db.Uuid
+  note      String?
+
+  setting SiteSetting @relation(fields: [key], references: [key], onDelete: Cascade)
+  author  User?       @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@unique([key, version])
+  @@index([key, createdAt])
+  @@map("site_setting_revisions")
+}
