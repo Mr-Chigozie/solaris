@@ -91,6 +91,38 @@ Example body for `/solar/designs/estimate`:
 | PATCH/DELETE | `/admin/team/:userId` | SUPER_ADMIN |
 | GET | `/admin/audit-logs?action=` | OPERATIONS |
 
-## Release 2 (planned)
+## Marketplace (public; verified businesses only)
 
-`/marketplace/products`, `/marketplace/services`, `/businesses/:slug` (storefront), `/organizations/:orgId/products|services|members|orders|quotations`, `/conversations`, `/conversations/:id/messages`, `/quotations/:id/revisions`, `/quotations/:id/accept`, `/orders`, `/payments/paystack/webhook`, `/reviews`.
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/marketplace/products?q&category&state&minPrice&maxPrice&inStock&seller&sort&page` | `sort`: relevance (featured first), price_asc, price_desc, newest |
+| GET | `/marketplace/products/:orgSlug/:productSlug` | Product detail + seller card |
+| GET | `/marketplace/services?q&category&state` | Installer services |
+| GET | `/marketplace/businesses?q&type&state` | Sellers / installers directory |
+| GET | `/marketplace/businesses/:slug` | Storefront with published products and services |
+
+## Business workspace (member of `:orgId`; permission noted)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/organizations/:orgId/workspace` | any member |
+| PATCH | `/organizations/:orgId/profile` | MANAGE_PROFILE |
+| GET/POST | `/organizations/:orgId/products` | read: member · write: MANAGE_PRODUCTS |
+| GET/PATCH/DELETE | `/organizations/:orgId/products/:id` | MANAGE_PRODUCTS (DELETE archives) |
+| PATCH | `/organizations/:orgId/products/:id/stock` | MANAGE_INVENTORY |
+| GET/POST/PATCH/DELETE | `/organizations/:orgId/services[/:id]` | MANAGE_SERVICES |
+| POST | `/uploads/images` (multipart `file`) | any business member · JPEG/PNG/WebP ≤ 5 MB |
+
+## Messaging (signed in)
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/conversations` | `{ organizationId, contextType?, contextId?, subject?, message }`. Continues an existing thread about the same thing |
+| GET | `/conversations?inbox=customer\|<orgId>` | My threads, or a business inbox (needs MESSAGE_CUSTOMERS) |
+| GET | `/conversations/unread-count` | `{ customer, businesses: { [orgId]: n }, total }` |
+| GET | `/conversations/:id` | Thread + context (product / service / shared design). 404 for non-participants |
+| POST | `/conversations/:id/messages` · `/conversations/:id/read` | Reply · mark read |
+
+## Release 2, part 2 (planned)
+
+`/quotations` (+ revisions, accept), `/orders`, `/payments/paystack/webhook`, `/reviews`, `/organizations/:orgId/members` (staff invitations).

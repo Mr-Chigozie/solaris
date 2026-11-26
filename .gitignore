@@ -17,6 +17,9 @@ apps/api/src/generated/
 # Local embedded database
 .pgdata/
 
+# Local file uploads (dev storage driver)
+apps/api/uploads/
+
 # OS / editor
 .DS_Store
 Thumbs.db

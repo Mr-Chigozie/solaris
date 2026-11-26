@@ -16,6 +16,10 @@ import { catalogRouter } from './modules/catalog/catalog.routes';
 import { designsRouter } from './modules/designs/designs.routes';
 import { organizationsRouter } from './modules/organizations/organizations.routes';
 import { maintenanceGate, siteRouter } from './modules/settings/site.routes';
+import { businessRouter } from './modules/business/business.routes';
+import { marketplaceRouter } from './modules/marketplace/marketplace.routes';
+import { messagingRouter } from './modules/messaging/messaging.routes';
+import { uploadsRouter, uploadsStatic } from './modules/uploads/uploads.routes';
 
 export function createApp() {
   const app = express();
@@ -32,6 +36,9 @@ export function createApp() {
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
   if (env.NODE_ENV !== 'test') app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/health' } }));
+
+  // Uploaded images (local-disk storage driver). Served with image-only headers.
+  app.use('/uploads', uploadsStatic);
 
   app.get('/health', async (_req, res) => {
     let database: 'up' | 'down' = 'up';
@@ -52,6 +59,10 @@ export function createApp() {
   v1.use(calculatorRouter);
   v1.use(designsRouter);
   v1.use(organizationsRouter);
+  v1.use(businessRouter);
+  v1.use(marketplaceRouter);
+  v1.use(messagingRouter);
+  v1.use(uploadsRouter);
   v1.use(adminRouter);
 
   app.use('/api/v1', v1);

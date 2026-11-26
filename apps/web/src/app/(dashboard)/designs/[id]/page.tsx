@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { DesignResults } from '@/features/calculator/design-results';
+import { ShareDesignButton } from '@/features/messaging/share-design';
 import { STATUS_LABEL, type DesignDetail } from '@/features/designs/types';
 import { api, ApiError } from '@/lib/api';
 import { cn, formatDate } from '@/lib/format';
@@ -78,7 +79,8 @@ export default function DesignDetailPage() {
             Saved {formatDate(design.createdAt)} · engine v{design.engineVersion} · data {design.dataVersion}
           </p>
         </div>
-        <div className="no-print flex gap-2">
+        <div className="no-print flex flex-wrap gap-2">
+          <ShareDesignButton design={{ id: design.id, title: design.title, state: design.result.location.state }} />
           <button type="button" onClick={() => window.print()} className="btn btn-secondary" aria-label="Print or save as PDF"><Printer className="h-4 w-4" /></button>
           <button type="button" onClick={recalculate} disabled={busy !== null || design.status === 'INSTALLER_APPROVED'} className="btn btn-secondary">
             {busy === 'recalc' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Recalculate

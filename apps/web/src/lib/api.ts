@@ -112,6 +112,22 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<A
   }
 }
 
+/** Upload an image (JPEG/PNG/WebP ≤ 5 MB). Returns its public URL. */
+export async function uploadImage(file: File, retry = true): Promise<string> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${API_URL}/uploads/images`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    body: form,
+  });
+  if (res.status === 401 && retry && (await refreshSession())) return uploadImage(file, false);
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.success) throw new ApiError(res.status, json?.error?.code ?? 'UPLOAD_FAILED', json?.error?.message ?? 'Upload failed');
+  return json.data.url as string;
+}
+
 /** Exchange the refresh cookie for a new session. Concurrent callers share one request. */
 export function refreshSession(): Promise<SessionPayload | null> {
   refreshing ??= raw<SessionPayload>('/auth/refresh', { method: 'POST' })

@@ -4,7 +4,7 @@
 
 Customers size systems, buy equipment and hire installers. Vendors run storefronts. Installers quote, schedule and manage installations. Everyone works inside one connected platform. SOLARIS Intelligence (solar sizing, monitoring, analytics) runs underneath.
 
-> Status: **Foundation v1**. This includes the open solar calculator, authentication, multi-tenant business accounts with staff permissions, business verification, saved designs, and the full commerce/operations data model. See [docs/architecture.md](docs/architecture.md) for what comes next.
+> Status: **Foundation v1 + Release 2 (part 1)**. Open solar calculator, accounts, multi-tenant businesses with staff permissions, verification, saved designs, admin control panel, **public storefronts, product & service listings with photos, marketplace search, installer directory and in-app customer↔business messaging**. See [docs/architecture.md](docs/architecture.md) for what comes next.
 
 ## Repository layout
 
@@ -12,7 +12,8 @@ Customers size systems, buy equipment and hire installers. Vendors run storefron
 apps/
   api/                 Express 5 + TypeScript REST API (modular monolith)
     prisma/            PostgreSQL schema, migrations, seed
-    src/modules/       auth · catalog · calculator · designs · organizations · admin
+    src/modules/       auth · catalog · calculator · designs · organizations · business ·
+                       marketplace · messaging · uploads · settings · admin
   web/                 Next.js 16 + Tailwind 4 web app (public site + role dashboards)
 packages/
   solar-engine/        Pure-TypeScript solar sizing engine (no framework/DB deps, unit-tested)
@@ -23,7 +24,7 @@ docs/                  Architecture, calculation methodology, API reference
 ## Prerequisites
 
 - Node.js 22+ (developed on 24)
-- PostgreSQL 15+. **Optional for local dev:** `npm run db:local` starts a bundled PostgreSQL with no installation.
+- PostgreSQL 15+ with a **UTF-8** database (needed for "₦", Nigerian names and emoji; the API warns at startup otherwise). **Optional for local dev:** `npm run db:local` starts a bundled UTF-8 PostgreSQL with no installation.
 
 ## First-time setup
 
@@ -45,6 +46,12 @@ Create the schema and seed reference data (appliances, the SOLARIS platform busi
 ```bash
 npm run db:migrate
 npm run db:seed
+```
+
+Optional demo marketplace data (two clearly labelled demo businesses with listings and logins):
+
+```bash
+npm run db:seed:demo -w @solaris/api              # remove again with: npm run db:seed:demo -w @solaris/api -- --remove
 ```
 
 ## Run

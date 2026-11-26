@@ -21,11 +21,22 @@ import { AppError } from '../../shared/errors';
 const TTL_MS = 5_000;
 let cache: { at: number; values: SiteSettings } | null = null;
 
+const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Deep-merge stored values over defaults (objects merge, arrays/primitives replace). */
+function deepMerge(defaults: unknown, stored: unknown): unknown {
+  if (!isPlainObject(defaults) || !isPlainObject(stored)) return stored === undefined ? defaults : stored;
+  const out: Record<string, unknown> = { ...defaults };
+  for (const [k, v] of Object.entries(stored)) out[k] = k in defaults ? deepMerge(defaults[k], v) : v;
+  return out;
+}
+
 function coerce<K extends SiteSettingKey>(key: K, stored: unknown): SiteSettings[K] {
   const schema = SITE_SETTING_SCHEMAS[key];
   const direct = schema.safeParse(stored);
   if (direct.success) return direct.data as SiteSettings[K];
-  const merged = schema.safeParse({ ...(DEFAULT_SITE_SETTINGS[key] as object), ...((stored as object) ?? {}) });
+  // Schema evolved since this was saved: keep the admin's edits, fill new fields from defaults.
+  const merged = schema.safeParse(deepMerge(DEFAULT_SITE_SETTINGS[key], stored));
   if (merged.success) return merged.data as SiteSettings[K];
   logger.warn({ key }, 'Stored setting failed validation — serving defaults');
   return DEFAULT_SITE_SETTINGS[key];

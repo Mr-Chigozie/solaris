@@ -96,11 +96,19 @@ Integrations: Paystack/Flutterwave · email/SMS · maps · inverter APIs / MQTT 
 | Release | Scope |
 |---|---|
 | **Foundation v1** ✅ | Monorepo, solar engine, open calculator, auth (Argon2id, rotating refresh tokens, reuse detection), multi-tenant businesses + staff permissions, verification workflow, saved designs, admin, full commerce/operations schema |
-| **R2 Commerce** | Storefronts, product & service listings (with images), marketplace search by state/category, messaging, quotation requests + revisions, orders, Paystack checkout + webhooks, reviews, business staff invitations |
+| **R2 Commerce** | ✅ Storefronts, product & service listings with photos, stock, marketplace search (state, category, price, stock), installer directory, customer↔business messaging incl. sharing a saved design. ⏳ Quotation requests + revisions, orders, Paystack checkout + webhooks, reviews, business staff invitations |
 | **R3 Operations & Intelligence** | Projects & milestones, installation registry (serials, warranties), manual + device energy readings, maintenance schedules, alerts, first inverter integrations |
 | **R4 Expansion** | Mobile apps, financing / PAYG partners, public engine API, AI recommendations, other African markets |
 
-## 7. Admin control panel
+## 7. Marketplace & messaging rules
+
+- **Visibility:** a listing is public only if it is `PUBLISHED`, not hidden by an admin, and its business is `VERIFIED` and not hidden. Unverified businesses can build their storefront in advance and go live the moment they are verified.
+- **Storefront URL:** `/store/:slug`. Product URL: `/marketplace/:orgSlug/:productSlug`. Both are server-rendered for search engines.
+- **Uploads:** JPEG/PNG/WebP up to 5 MB. The type is checked from the file's actual bytes, files get random names, and they are served with `nosniff` and a no-script CSP. Storage sits behind a `StorageDriver` interface: local disk in development, swap to S3-compatible storage for production.
+- **Messaging:** one thread per customer × business × context (product, service, saved design or general). Any staff member with `MESSAGE_CUSTOMERS` can reply. Customers see the business name, not which staff member replied. Businesses see the customer's name, not their email or phone. Non-participants get 404. Updates are polled every 6 s; real-time push (Socket.IO) and email/SMS notifications come later.
+- **Rate limits:** login counts failed attempts only (10 per 15 min). Registration is limited to 20 per 15 min, session refresh to 300 per 15 min, and messages to 30 per minute.
+
+## 8. Admin control panel
 
 Admin users (`roles` includes `ADMIN`) get scoped **admin roles**. `SUPER_ADMIN` implies every other role.
 
@@ -123,6 +131,6 @@ Admin users (`roles` includes `ADMIN`) get scoped **admin roles**. `SUPER_ADMIN`
 - Reference prices are a server-side baseline for the engine (`referencePrices`), separate from user overrides. They are never exposed publicly.
 - Page layout and icons are fixed in code, and editors change wording only. That keeps the premium design consistent no matter who edits content.
 
-## 8. Security baseline
+## 9. Security baseline
 
 Argon2id (OWASP params) · short-lived JWT + rotating refresh tokens with theft detection and a 10 s multi-tab grace window · roles re-read from the DB for privileged routes · Zod validation on every input · rate limits (global, auth, calculator) · 100 kB body limit · Helmet headers · CORS allow-list · audit log for security, admin and financial actions · Nigeria Data Protection Act 2023 consent captured at registration.

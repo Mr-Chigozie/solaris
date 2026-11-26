@@ -140,4 +140,5 @@ export const paginationSchema = z.object({
 });
 
 export * from './site-settings';
+export * from './marketplace';
 export { z };

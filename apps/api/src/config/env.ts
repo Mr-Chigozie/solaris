@@ -4,6 +4,8 @@ const schema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().default(5000),
+    /** Public origin of this API, used to build URLs for uploaded files. */
+    PUBLIC_API_ORIGIN: z.string().url().default('http://localhost:5000'),
     CORS_ORIGINS: z
       .string()
       .default('http://localhost:3000')

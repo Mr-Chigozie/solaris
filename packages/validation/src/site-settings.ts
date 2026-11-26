@@ -76,6 +76,15 @@ export const homeContentSchema = z.object({
     trustPoints: z.array(text(60)).length(3),
   }),
   stats: z.array(z.object({ value: text(12).min(1), label: text(80).min(1) })).length(4),
+  /** "Do everything in one app" — each capability flagged live or coming soon, so we never over-promise. */
+  platform: z.object({
+    eyebrow: text(40),
+    title: text(120).min(1),
+    body: text(400),
+    items: z.array(z.object({ title: text(60).min(1), body: text(200), live: z.boolean() })).length(6),
+    primaryCtaLabel: text(40).min(1),
+    secondaryCtaLabel: text(40),
+  }),
   howItWorks: z.object({ eyebrow: text(40), title: text(120).min(1), steps: z.array(titled).length(4) }),
   audiences: z.object({
     eyebrow: text(40),
@@ -83,7 +92,7 @@ export const homeContentSchema = z.object({
     items: z.array(titled.extend({ points: z.array(text(60)).max(5), ctaLabel: text(40) })).length(3),
   }),
   honestNumbers: z.object({ eyebrow: text(40), title: text(120).min(1), items: z.array(titled).length(3) }),
-  finalCta: z.object({ title: text(120).min(1), body: text(300), ctaLabel: text(40).min(1) }),
+  finalCta: z.object({ title: text(120).min(1), body: text(300), ctaLabel: text(40).min(1), secondaryCtaLabel: text(40) }),
 });
 
 export const footerContentSchema = z.object({
@@ -185,7 +194,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
       titleLine1: 'Reliable power,',
       titleHighlight: 'engineered for your home.',
       subtitle:
-        'Tell us what you power. SOLARIS sizes your panels, batteries and inverter using sunshine data for your state, then shows a clear equipment list and an estimated cost in naira.',
+        'Size your system with sunshine data for your state, shop equipment from verified sellers and chat with installers — all in one app. No phone tag, no guesswork.',
       primaryCtaLabel: 'Size my solar system',
       secondaryCtaLabel: "I'm an installer",
       trustPoints: ['No sign-up to calculate', 'Sun data for your state', 'Every assumption shown'],
@@ -196,6 +205,21 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
       { value: '3', label: 'battery chemistries compared' },
       { value: '100%', label: 'of assumptions visible & editable' },
     ],
+    platform: {
+      eyebrow: 'One app, start to finish',
+      title: 'Everything solar — without leaving SOLARIS',
+      body: 'Plan, shop, talk to professionals and manage your system in one place. Sellers and installers run their businesses here too, so every conversation, quote and order stays connected.',
+      items: [
+        { title: 'Size your system', body: 'Free calculator using your appliances and your state’s sunshine.', live: true },
+        { title: 'Shop verified sellers', body: 'Compare panels, inverters and batteries with real specs and prices.', live: true },
+        { title: 'Chat in the app', body: 'Message sellers and installers directly — share your design in one tap.', live: true },
+        { title: 'Get quotations', body: 'Receive and compare itemised quotes with locked-in prices.', live: false },
+        { title: 'Order & pay securely', body: 'Pay through licensed providers and track every order.', live: false },
+        { title: 'Track installation & performance', body: 'Follow your project to handover, then monitor your system.', live: false },
+      ],
+      primaryCtaLabel: 'Get started free',
+      secondaryCtaLabel: 'Browse the marketplace',
+    },
     howItWorks: {
       eyebrow: 'How it works',
       title: 'From your appliance list to a working system',
@@ -240,9 +264,10 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
       ],
     },
     finalCta: {
-      title: 'Find out what your home really needs',
-      body: 'It takes about three minutes. No account, no phone number, no sales call.',
-      ctaLabel: 'Open the calculator',
+      title: 'Plan it, buy it, install it — all in SOLARIS',
+      body: 'Start with a free sizing in about three minutes, then message verified sellers and installers without leaving the app.',
+      ctaLabel: 'Size my system free',
+      secondaryCtaLabel: 'Browse the marketplace',
     },
   },
   'content.footer': {

@@ -3,7 +3,11 @@ import {
   BadgeCheck,
   Calculator,
   ClipboardCheck,
+  CreditCard,
+  FileText,
   Gauge,
+  MessageSquare,
+  ShoppingBag,
   HardHat,
   House,
   ListPlus,
@@ -21,6 +25,7 @@ import { getSiteConfig } from '@/lib/site-config';
 // Layout and icons are fixed by design; all copy comes from Admin → Site content.
 const TRUST_ICONS = [ShieldCheck, MapPin, Sparkles];
 const STEP_ICONS = [ListPlus, Calculator, ClipboardCheck, BadgeCheck];
+const PLATFORM_ICONS = [Calculator, ShoppingBag, MessageSquare, FileText, CreditCard, Gauge];
 const HONEST_ICONS = [
   [Calculator, 'text-sun-400'],
   [BadgeCheck, 'text-volt-400'],
@@ -113,6 +118,45 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Everything in one app */}
+      <section className="mx-auto max-w-7xl px-4 pt-24 sm:px-6">
+        <div className="card relative overflow-hidden p-6 sm:p-10">
+          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[radial-gradient(circle,color-mix(in_oklab,var(--brand-secondary)_22%,transparent),transparent_70%)]" />
+          <div className="relative grid gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center">
+            <div>
+              {c.platform.eyebrow && <p className="text-sm font-semibold uppercase tracking-[0.18em] text-volt-400">{c.platform.eyebrow}</p>}
+              <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">{c.platform.title}</h2>
+              {c.platform.body && <p className="mt-4 leading-relaxed text-ink-300">{c.platform.body}</p>}
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link href="/register" className="btn btn-primary px-6 py-3">{c.platform.primaryCtaLabel} <ArrowRight className="h-4 w-4" /></Link>
+                {c.platform.secondaryCtaLabel && features.marketplace && (
+                  <Link href="/marketplace" className="btn btn-secondary px-6 py-3">{c.platform.secondaryCtaLabel}</Link>
+                )}
+              </div>
+            </div>
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {c.platform.items.map((item, i) => {
+                const I = PLATFORM_ICONS[i] ?? Sparkles;
+                return (
+                  <li key={i} className="rounded-2xl border border-white/[0.06] bg-ink-900/60 p-4">
+                    <div className="flex items-center justify-between">
+                      <span className={`grid h-9 w-9 place-items-center rounded-xl ${item.live ? 'bg-sun-400/15 text-sun-400' : 'bg-white/[0.05] text-ink-400'}`}>
+                        <I className="h-4.5 w-4.5" />
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${item.live ? 'bg-volt-500/15 text-volt-300' : 'bg-white/[0.06] text-ink-400'}`}>
+                        {item.live ? 'Live' : 'Coming soon'}
+                      </span>
+                    </div>
+                    <h3 className="mt-3 font-bold text-white">{item.title}</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-ink-400">{item.body}</p>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      </section>
+
       {/* How it works */}
       <section id="how-it-works" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-24 sm:px-6">
         <SectionHeading eyebrow={c.howItWorks.eyebrow} title={c.howItWorks.title} />
@@ -193,9 +237,14 @@ export default async function HomePage() {
           <PackageSearch className="relative mx-auto h-10 w-10 text-sun-400" />
           <h2 className="relative mt-6 text-3xl font-extrabold text-white sm:text-4xl">{c.finalCta.title}</h2>
           {c.finalCta.body && <p className="relative mx-auto mt-4 max-w-xl text-ink-300">{c.finalCta.body}</p>}
-          <Link href={primaryHref} className="btn btn-primary relative mt-8 px-8 py-3.5 text-base">
-            {c.finalCta.ctaLabel} <ArrowRight className="h-4 w-4" />
-          </Link>
+          <div className="relative mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <Link href={primaryHref} className="btn btn-primary px-8 py-3.5 text-base">
+              {c.finalCta.ctaLabel} <ArrowRight className="h-4 w-4" />
+            </Link>
+            {c.finalCta.secondaryCtaLabel && features.marketplace && (
+              <Link href="/marketplace" className="btn btn-secondary px-8 py-3.5 text-base">{c.finalCta.secondaryCtaLabel}</Link>
+            )}
+          </div>
         </div>
       </section>
     </>

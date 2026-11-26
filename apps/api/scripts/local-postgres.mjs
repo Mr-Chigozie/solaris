@@ -17,6 +17,8 @@ const pg = new EmbeddedPostgres({
   password: 'solaris',
   port,
   persistent: true,
+  // UTF-8 regardless of the Windows locale — otherwise "₦" and emoji can't be stored.
+  initdbFlags: ['--encoding=UTF8', '--locale=C'],
   onLog: () => {},
 });
 
