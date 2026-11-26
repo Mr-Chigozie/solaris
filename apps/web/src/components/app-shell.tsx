@@ -41,8 +41,8 @@ const NAV: NavItem[] = [
   { href: '/business', label: 'My business', icon: Briefcase, roles: 'all', mobile: true },
   { href: '/marketplace', label: 'Marketplace', icon: ShoppingBag, roles: 'all' },
   { href: '/calculator', label: 'Calculator', icon: Calculator, roles: 'all' },
-  { href: '#quotations', label: 'Quotations', icon: FileText, roles: 'all', soon: true },
-  { href: '#projects', label: 'Projects & orders', icon: FolderKanban, roles: 'all', soon: true },
+  { href: '/orders', label: 'Quotes & orders', icon: FileText, roles: 'all' },
+  { href: '#installations', label: 'Installations', icon: FolderKanban, roles: 'all', soon: true },
   { href: '#monitoring', label: 'My solar systems', icon: Gauge, roles: ['CONSUMER'], soon: true },
   { href: '/admin', label: 'Administration', icon: ShieldCheck, roles: ['ADMIN'], mobile: true },
 ];

@@ -166,6 +166,8 @@ enum PaymentProvider {
   PAYSTACK
   FLUTTERWAVE
   BANK_TRANSFER
+  /// Development-only simulated checkout
+  MOCK
 }
 
 enum PaymentStatus {
@@ -198,6 +200,14 @@ enum ReviewStatus {
   FLAGGED
 }
 
+/// Chat messages can carry a commercial document so it shows as a card in the thread.
+enum MessageKind {
+  TEXT
+  QUOTATION
+  ORDER
+  SYSTEM
+}
+
 /// Where an energy figure came from. Only DEVICE readings are "measured".
 enum ReadingSource {
   MANUAL
@@ -223,33 +233,33 @@ enum SubscriptionStatus {
 // ═════════════════════════════════════════════════════════════ identity & tenancy
 
 model User {
-  id              String     @id @default(uuid()) @db.Uuid
-  email           String     @unique
+  id              String      @id @default(uuid()) @db.Uuid
+  email           String      @unique
   passwordHash    String?
   firstName       String
   lastName        String
-  phone           String?    @unique
+  phone           String?     @unique
   state           String?
-  roles           UserRole[] @default([CONSUMER])
+  roles           UserRole[]  @default([CONSUMER])
   /// Only meaningful when roles contains ADMIN.
   adminRoles      AdminRole[]
-  isActive        Boolean    @default(true)
+  isActive        Boolean     @default(true)
   emailVerifiedAt DateTime?
   termsAcceptedAt DateTime?
   lastLoginAt     DateTime?
 
-  memberships          OrganizationMember[]
-  refreshTokens        RefreshToken[]
-  audits               EnergyAudit[]
-  designs              SolarDesign[]
-  quotations           Quotation[]          @relation("CustomerQuotations")
-  orders               Order[]              @relation("CustomerOrders")
-  projects             Project[]            @relation("CustomerProjects")
-  conversations        Conversation[]       @relation("CustomerConversations")
-  messagesSent         Message[]
-  reviews              Review[]
-  auditLogs            AuditLog[]
-  settingRevisions     SiteSettingRevision[]
+  memberships      OrganizationMember[]
+  refreshTokens    RefreshToken[]
+  audits           EnergyAudit[]
+  designs          SolarDesign[]
+  quotations       Quotation[]           @relation("CustomerQuotations")
+  orders           Order[]               @relation("CustomerOrders")
+  projects         Project[]             @relation("CustomerProjects")
+  conversations    Conversation[]        @relation("CustomerConversations")
+  messagesSent     Message[]
+  reviews          Review[]
+  auditLogs        AuditLog[]
+  settingRevisions SiteSettingRevision[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -293,21 +303,30 @@ model Organization {
   verifiedAt       DateTime?
 
   // Public storefront / profile
-  tagline      String?
-  description  String?
-  logoUrl      String?
-  coverUrl     String?
-  website      String?
-  email        String?
-  phone        String?
-  whatsapp     String?
-  state        String?
-  city         String?
-  address      String?
+  tagline         String?
+  description     String?
+  logoUrl         String?
+  coverUrl        String?
+  website         String?
+  email           String?
+  phone           String?
+  whatsapp        String?
+  state           String?
+  city            String?
+  address         String?
   /// States this business delivers to or installs in.
-  serviceStates String[]
-  cacNumber    String? /// Corporate Affairs Commission registration number
+  serviceStates   String[]
+  cacNumber       String? /// Corporate Affairs Commission registration number
   yearsInBusiness Int?
+
+  // Payouts — funds settle directly to the seller via a payment-provider subaccount.
+  // SOLARIS never holds customer money; only masked account details are stored.
+  paystackSubaccountCode String?
+  payoutBankCode         String?
+  payoutBankName         String?
+  payoutAccountName      String?
+  payoutAccountLast4     String?
+  payoutsEnabledAt       DateTime?
 
   // Admin curation
   isFeatured   Boolean   @default(false)
@@ -560,6 +579,11 @@ model Quotation {
   conversationId  String?         @db.Uuid
   status          QuotationStatus @default(REQUESTED)
   currentRevision Int             @default(0)
+  title           String?
+  sentAt          DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  withdrawnAt     DateTime?
   expiresAt       DateTime?
   acceptedAt      DateTime?
 
@@ -581,18 +605,20 @@ model Quotation {
 
 /// Immutable. A price change creates a new revision; sent revisions are never edited.
 model QuotationRevision {
-  id          String  @id @default(uuid()) @db.Uuid
-  quotationId String  @db.Uuid
+  id          String    @id @default(uuid()) @db.Uuid
+  quotationId String    @db.Uuid
   revision    Int
   /// [{ productId?, serviceId?, description, quantity, unitPrice, lineTotal, snapshot }]
   lineItems   Json
-  subtotal    Decimal @db.Decimal(14, 2)
-  discount    Decimal @default(0) @db.Decimal(14, 2)
-  tax         Decimal @default(0) @db.Decimal(14, 2)
-  total       Decimal @db.Decimal(14, 2)
-  currency    String  @default("NGN")
+  subtotal    Decimal   @db.Decimal(14, 2)
+  discount    Decimal   @default(0) @db.Decimal(14, 2)
+  vatRate     Decimal   @default(0) @db.Decimal(5, 4)
+  tax         Decimal   @default(0) @db.Decimal(14, 2)
+  total       Decimal   @db.Decimal(14, 2)
+  currency    String    @default("NGN")
   notes       String?
-  createdById String? @db.Uuid
+  validUntil  DateTime?
+  createdById String?   @db.Uuid
 
   quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
 
@@ -605,25 +631,32 @@ model QuotationRevision {
 /// One order = one customer buying from one business. A cart spanning several
 /// sellers becomes several orders, so each business manages only its own.
 model Order {
-  id                String      @id @default(uuid()) @db.Uuid
-  reference         String      @unique
-  customerId        String      @db.Uuid
-  organizationId    String      @db.Uuid
-  quotationId       String?     @unique @db.Uuid
-  status            OrderStatus @default(PENDING_PAYMENT)
-  subtotal          Decimal     @db.Decimal(14, 2)
-  deliveryFee       Decimal     @default(0) @db.Decimal(14, 2)
-  total             Decimal     @db.Decimal(14, 2)
-  currency          String      @default("NGN")
+  id               String      @id @default(uuid()) @db.Uuid
+  reference        String      @unique
+  customerId       String      @db.Uuid
+  organizationId   String      @db.Uuid
+  quotationId      String?     @unique @db.Uuid
+  status           OrderStatus @default(PENDING_PAYMENT)
+  subtotal         Decimal     @db.Decimal(14, 2)
+  deliveryFee      Decimal     @default(0) @db.Decimal(14, 2)
+  /// Discount and VAT carried over from the accepted quotation revision.
+  discount         Decimal     @default(0) @db.Decimal(14, 2)
+  tax              Decimal     @default(0) @db.Decimal(14, 2)
+  total            Decimal     @db.Decimal(14, 2)
+  currency         String      @default("NGN")
   /// Marketplace commission captured at order time (rate can differ per plan).
-  commissionRate    Decimal     @default(0) @db.Decimal(5, 4)
-  commissionAmount  Decimal     @default(0) @db.Decimal(14, 2)
-  deliveryAddress   Json?
-  notes             String?
+  commissionRate   Decimal     @default(0) @db.Decimal(5, 4)
+  commissionAmount Decimal     @default(0) @db.Decimal(14, 2)
+  deliveryAddress  Json?
+  notes            String?
+  paidAt           DateTime?
+  cancelledAt      DateTime?
+  cancelReason     String?
+  completedAt      DateTime?
 
-  customer     User          @relation("CustomerOrders", fields: [customerId], references: [id])
-  organization Organization  @relation("SellerOrders", fields: [organizationId], references: [id])
-  quotation    Quotation?    @relation(fields: [quotationId], references: [id])
+  customer     User         @relation("CustomerOrders", fields: [customerId], references: [id])
+  organization Organization @relation("SellerOrders", fields: [organizationId], references: [id])
+  quotation    Quotation?   @relation(fields: [quotationId], references: [id])
   items        OrderItem[]
   payments     Payment[]
   events       OrderEvent[]
@@ -638,14 +671,14 @@ model Order {
 }
 
 model OrderItem {
-  id          String   @id @default(uuid()) @db.Uuid
-  orderId     String   @db.Uuid
-  productId   String?  @db.Uuid
-  serviceId   String?  @db.Uuid
+  id          String  @id @default(uuid()) @db.Uuid
+  orderId     String  @db.Uuid
+  productId   String? @db.Uuid
+  serviceId   String? @db.Uuid
   description String
   quantity    Int
-  unitPrice   Decimal  @db.Decimal(14, 2)
-  lineTotal   Decimal  @db.Decimal(14, 2)
+  unitPrice   Decimal @db.Decimal(14, 2)
+  lineTotal   Decimal @db.Decimal(14, 2)
   /// Listing as it was when ordered.
   snapshot    Json
 
@@ -659,11 +692,11 @@ model OrderItem {
 
 /// Status timeline for an order — what both customer and seller see.
 model OrderEvent {
-  id        String       @id @default(uuid()) @db.Uuid
-  orderId   String       @db.Uuid
-  status    OrderStatus
-  note      String?
-  actorId   String?      @db.Uuid
+  id      String      @id @default(uuid()) @db.Uuid
+  orderId String      @db.Uuid
+  status  OrderStatus
+  note    String?
+  actorId String?     @db.Uuid
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -675,16 +708,21 @@ model OrderEvent {
 
 /// Funds are handled by a licensed provider; SOLARIS never holds card data.
 model Payment {
-  id          String          @id @default(uuid()) @db.Uuid
-  orderId     String          @db.Uuid
-  provider    PaymentProvider
-  providerRef String          @unique
-  amount      Decimal         @db.Decimal(14, 2)
-  currency    String          @default("NGN")
-  status      PaymentStatus   @default(INITIATED)
+  id               String          @id @default(uuid()) @db.Uuid
+  orderId          String          @db.Uuid
+  provider         PaymentProvider
+  providerRef      String          @unique
+  amount           Decimal         @db.Decimal(14, 2)
+  currency         String          @default("NGN")
+  status           PaymentStatus   @default(INITIATED)
+  authorizationUrl String?
+  /// Seller subaccount the funds settle to, and SOLARIS's commission on this charge.
+  subaccountCode   String?
+  platformFee      Decimal?        @db.Decimal(14, 2)
+  channel          String?
   /// Verified webhook payloads, kept for reconciliation.
-  webhookData Json?
-  paidAt      DateTime?
+  webhookData      Json?
+  paidAt           DateTime?
 
   order Order @relation(fields: [orderId], references: [id])
 
@@ -748,11 +786,14 @@ model Conversation {
 }
 
 model Message {
-  id             String   @id @default(uuid()) @db.Uuid
-  conversationId String   @db.Uuid
-  senderId       String   @db.Uuid
+  id             String      @id @default(uuid()) @db.Uuid
+  conversationId String      @db.Uuid
+  senderId       String      @db.Uuid
   /// true when sent on behalf of the business (by a staff member)
   fromBusiness   Boolean
+  kind           MessageKind @default(TEXT)
+  /// Quotation or order id when kind is QUOTATION / ORDER.
+  refId          String?     @db.Uuid
   body           String
   attachments    String[]
 
@@ -884,10 +925,10 @@ model AuditLog {
 /// feature toggles, reference prices…). `value` is validated against the
 /// schema for its key in @solaris/validation before it is stored.
 model SiteSetting {
-  key         String   @id
+  key         String  @id
   value       Json
-  version     Int      @default(1)
-  updatedById String?  @db.Uuid
+  version     Int     @default(1)
+  updatedById String? @db.Uuid
 
   revisions SiteSettingRevision[]
 
@@ -898,12 +939,12 @@ model SiteSetting {
 
 /// Every saved version of a setting — enables history and one-click restore.
 model SiteSettingRevision {
-  id        String  @id @default(uuid()) @db.Uuid
-  key       String
-  version   Int
-  value     Json
-  authorId  String? @db.Uuid
-  note      String?
+  id       String  @id @default(uuid()) @db.Uuid
+  key      String
+  version  Int
+  value    Json
+  authorId String? @db.Uuid
+  note     String?
 
   setting SiteSetting @relation(fields: [key], references: [key], onDelete: Cascade)
   author  User?       @relation(fields: [authorId], references: [id], onDelete: SetNull)

@@ -96,7 +96,7 @@ Integrations: Paystack/Flutterwave · email/SMS · maps · inverter APIs / MQTT 
 | Release | Scope |
 |---|---|
 | **Foundation v1** ✅ | Monorepo, solar engine, open calculator, auth (Argon2id, rotating refresh tokens, reuse detection), multi-tenant businesses + staff permissions, verification workflow, saved designs, admin, full commerce/operations schema |
-| **R2 Commerce** | ✅ Storefronts, product & service listings with photos, stock, marketplace search (state, category, price, stock), installer directory, customer↔business messaging incl. sharing a saved design. ⏳ Quotation requests + revisions, orders, Paystack checkout + webhooks, reviews, business staff invitations |
+| **R2 Commerce** | ✅ Storefronts, listings with photos and stock, marketplace search, installer directory, messaging (incl. sharing a design), quotations with immutable revisions and VAT, orders from accepted quotes, Paystack split payments with seller payouts, fulfilment tracking. ⏳ Reviews, business staff invitations, refunds/disputes tooling |
 | **R3 Operations & Intelligence** | Projects & milestones, installation registry (serials, warranties), manual + device energy readings, maintenance schedules, alerts, first inverter integrations |
 | **R4 Expansion** | Mobile apps, financing / PAYG partners, public engine API, AI recommendations, other African markets |
 
@@ -108,7 +108,17 @@ Integrations: Paystack/Flutterwave · email/SMS · maps · inverter APIs / MQTT 
 - **Messaging:** one thread per customer × business × context (product, service, saved design or general). Any staff member with `MESSAGE_CUSTOMERS` can reply. Customers see the business name, not which staff member replied. Businesses see the customer's name, not their email or phone. Non-participants get 404. Updates are polled every 6 s; real-time push (Socket.IO) and email/SMS notifications come later.
 - **Rate limits:** login counts failed attempts only (10 per 15 min). Registration is limited to 20 per 15 min, session refresh to 300 per 15 min, and messages to 30 per minute.
 
-## 8. Admin control panel
+## 8. Quotations, orders & payments
+
+- **Flow:** conversation → quotation (built by the business, sent as a card in the chat) → customer accepts the *current* revision with a delivery address → order `PENDING_PAYMENT` → Paystack checkout → `PAID` → seller moves it through PROCESSING / READY / SHIPPED / DELIVERED → customer confirms → `COMPLETED`.
+- **Money is computed in integer kobo** on the server. Client totals are never trusted. VAT (default 7.5%, admin-configurable) applies only when a VAT-registered seller ticks it. Commission is charged on the pre-VAT value.
+- **Immutability:** each revision snapshots its line items, including catalogue product details at that moment. Orders copy the accepted revision. Later price changes never alter a sent quote or an order.
+- **SOLARIS never holds funds.** A seller connects a bank account, which creates a Paystack **subaccount**. Each charge is initialised with `subaccount` + a flat `transaction_charge` (the commission), and `bearer: subaccount`. Paystack settles the seller's share directly to them.
+- **Payment confirmation is idempotent.** The webhook (HMAC-SHA512 verified, then re-verified via the Paystack API) and the browser's verify call can race safely. The first applies the payment, decrements stock (never below zero) and posts an order card in the chat; the rest are no-ops. Amount or currency mismatches mark the order `DISPUTED`. A payment arriving after cancellation is flagged for refund.
+- **Unpaid orders** lapse after a configurable window (default 72 h). Stock is not reserved before payment.
+- **Local development** uses a mock provider (`PAYMENTS_PROVIDER=mock`) with a simulated checkout page. The API refuses the mock in production. To use Paystack, set `PAYMENTS_PROVIDER=paystack` and `PAYSTACK_SECRET_KEY=sk_test_…`, and point Paystack's webhook at `<API origin>/api/v1/payments/paystack/webhook`.
+
+## 9. Admin control panel
 
 Admin users (`roles` includes `ADMIN`) get scoped **admin roles**. `SUPER_ADMIN` implies every other role.
 
@@ -131,6 +141,6 @@ Admin users (`roles` includes `ADMIN`) get scoped **admin roles**. `SUPER_ADMIN`
 - Reference prices are a server-side baseline for the engine (`referencePrices`), separate from user overrides. They are never exposed publicly.
 - Page layout and icons are fixed in code, and editors change wording only. That keeps the premium design consistent no matter who edits content.
 
-## 9. Security baseline
+## 10. Security baseline
 
 Argon2id (OWASP params) · short-lived JWT + rotating refresh tokens with theft detection and a 10 s multi-tab grace window · roles re-read from the DB for privileged routes · Zod validation on every input · rate limits (global, auth, calculator) · 100 kB body limit · Helmet headers · CORS allow-list · audit log for security, admin and financial actions · Nigeria Data Protection Act 2023 consent captured at registration.

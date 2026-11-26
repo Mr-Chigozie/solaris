@@ -4,7 +4,7 @@
 
 Customers size systems, buy equipment and hire installers. Vendors run storefronts. Installers quote, schedule and manage installations. Everyone works inside one connected platform. SOLARIS Intelligence (solar sizing, monitoring, analytics) runs underneath.
 
-> Status: **Foundation v1 + Release 2 (part 1)**. Open solar calculator, accounts, multi-tenant businesses with staff permissions, verification, saved designs, admin control panel, **public storefronts, product & service listings with photos, marketplace search, installer directory and in-app customer↔business messaging**. See [docs/architecture.md](docs/architecture.md) for what comes next.
+> Status: **Foundation v1 + Release 2**. Open solar calculator, accounts, multi-tenant businesses with staff permissions, verification, saved designs, admin control panel, public storefronts, listings with photos, marketplace search, installer directory, in-app messaging, **quotations, orders and Paystack split payments with seller payouts**. See [docs/architecture.md](docs/architecture.md) for what comes next.
 
 ## Repository layout
 
@@ -53,6 +53,17 @@ Optional demo marketplace data (two clearly labelled demo businesses with listin
 ```bash
 npm run db:seed:demo -w @solaris/api              # remove again with: npm run db:seed:demo -w @solaris/api -- --remove
 ```
+
+### Payments
+
+Local development uses a **simulated checkout** (`PAYMENTS_PROVIDER=mock`, the default). No keys or real money are involved. To test with Paystack, put your **test** secret key in `apps/api/.env`:
+
+```bash
+PAYMENTS_PROVIDER=paystack
+PAYSTACK_SECRET_KEY=<your test secret key, starts with sk_test_>   # never commit this
+```
+
+Sellers connect a payout bank account under *My business → Payouts*. Payments settle to them directly through Paystack subaccounts, minus SOLARIS's commission.
 
 ## Run
 

@@ -117,6 +117,18 @@ export const pricingSchema = z.object({
   contingencyFraction: z.number().min(0).max(0.5),
 });
 
+/* ------------------------------------------------------------------ commerce */
+
+export const commerceSchema = z.object({
+  /** SOLARIS's marketplace commission, deducted via the payment split (0.05 = 5%). */
+  commissionRate: z.number().min(0).max(0.3),
+  /** Nigerian VAT rate applied when a VAT-registered seller ticks "add VAT". */
+  vatRate: z.number().min(0).max(0.5),
+  defaultQuoteValidityDays: z.number().int().min(1).max(90),
+  /** Unpaid orders are auto-cancelled after this many hours (stock is not held before payment). */
+  unpaidOrderExpiryHours: z.number().int().min(1).max(720),
+});
+
 /* ----------------------------------------------------------------- registry */
 
 export const SITE_SETTING_SCHEMAS = {
@@ -127,6 +139,7 @@ export const SITE_SETTING_SCHEMAS = {
   'content.home': homeContentSchema,
   'content.footer': footerContentSchema,
   pricing: pricingSchema,
+  commerce: commerceSchema,
 } as const;
 
 export type SiteSettingKey = keyof typeof SITE_SETTING_SCHEMAS;
@@ -143,6 +156,7 @@ export const SETTING_EDITOR_ROLE: Record<SiteSettingKey, AdminRoleName> = {
   'content.footer': 'CONTENT_EDITOR',
   features: 'SUPER_ADMIN',
   pricing: 'MARKETPLACE_CURATOR',
+  commerce: 'SUPER_ADMIN',
 };
 
 /** Settings safe to expose publicly (pricing is applied server-side only). */
@@ -213,8 +227,8 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
         { title: 'Size your system', body: 'Free calculator using your appliances and your state’s sunshine.', live: true },
         { title: 'Shop verified sellers', body: 'Compare panels, inverters and batteries with real specs and prices.', live: true },
         { title: 'Chat in the app', body: 'Message sellers and installers directly — share your design in one tap.', live: true },
-        { title: 'Get quotations', body: 'Receive and compare itemised quotes with locked-in prices.', live: false },
-        { title: 'Order & pay securely', body: 'Pay through licensed providers and track every order.', live: false },
+        { title: 'Get quotations', body: 'Receive itemised quotes in your chat, with prices locked in.', live: true },
+        { title: 'Order & pay securely', body: 'Pay with Paystack — money goes straight to the seller — and track every order.', live: true },
         { title: 'Track installation & performance', body: 'Follow your project to handover, then monitor your system.', live: false },
       ],
       primaryCtaLabel: 'Get started free',
@@ -274,6 +288,12 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     about: 'Solar intelligence for Nigeria. Assess your energy needs, design the right system, and connect with vendors and installers.',
     disclaimer:
       'Calculator results are estimates for planning only. Final system designs must be confirmed by a qualified installer after a site survey.',
+  },
+  commerce: {
+    commissionRate: 0.05,
+    vatRate: 0.075,
+    defaultQuoteValidityDays: 14,
+    unpaidOrderExpiryHours: 72,
   },
   pricing: {
     pricesReviewed: '2026-11',

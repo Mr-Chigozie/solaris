@@ -6,6 +6,11 @@ const schema = z
     PORT: z.coerce.number().int().default(5000),
     /** Public origin of this API, used to build URLs for uploaded files. */
     PUBLIC_API_ORIGIN: z.string().url().default('http://localhost:5000'),
+    /** Public origin of the web app — used for payment return URLs. */
+    WEB_ORIGIN: z.string().url().default('http://localhost:3000'),
+    /** "paystack" (needs PAYSTACK_SECRET_KEY), "mock" (development only) or "none". */
+    PAYMENTS_PROVIDER: z.enum(['paystack', 'mock', 'none']).default('mock'),
+    PAYSTACK_SECRET_KEY: z.string().regex(/^sk_(test|live)_/, 'PAYSTACK_SECRET_KEY must start with sk_test_ or sk_live_').optional(),
     CORS_ORIGINS: z
       .string()
       .default('http://localhost:3000')
@@ -18,6 +23,12 @@ const schema = z
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === 'production' && env.JWT_ACCESS_SECRET.includes('change-me')) {
       ctx.addIssue({ code: 'custom', path: ['JWT_ACCESS_SECRET'], message: 'Set a real secret in production' });
+    }
+    if (env.NODE_ENV === 'production' && env.PAYMENTS_PROVIDER === 'mock') {
+      ctx.addIssue({ code: 'custom', path: ['PAYMENTS_PROVIDER'], message: 'The mock payment provider cannot be used in production' });
+    }
+    if (env.PAYMENTS_PROVIDER === 'paystack' && !env.PAYSTACK_SECRET_KEY) {
+      ctx.addIssue({ code: 'custom', path: ['PAYSTACK_SECRET_KEY'], message: 'Required when PAYMENTS_PROVIDER=paystack' });
     }
   });
 

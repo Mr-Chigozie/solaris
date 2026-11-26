@@ -123,6 +123,34 @@ Example body for `/solar/designs/estimate`:
 | GET | `/conversations/:id` | Thread + context (product / service / shared design). 404 for non-participants |
 | POST | `/conversations/:id/messages` · `/conversations/:id/read` | Reply · mark read |
 
-## Release 2, part 2 (planned)
+## Quotations
 
-`/quotations` (+ revisions, accept), `/orders`, `/payments/paystack/webhook`, `/reviews`, `/organizations/:orgId/members` (staff invitations).
+| Method | Path | Who |
+|---|---|---|
+| POST | `/organizations/:orgId/quotations` | MANAGE_QUOTATIONS. `{ conversationId, title?, lineItems[{kind: PRODUCT\|SERVICE\|CUSTOM, productId?, serviceId?, description, quantity, unitPrice}], discount, applyVat, notes?, validDays?, send }`. Totals are computed by the server |
+| GET | `/organizations/:orgId/quotations?status=` | MANAGE_QUOTATIONS |
+| POST | `/organizations/:orgId/quotations/:id/revisions` | MANAGE_QUOTATIONS. Creates revision n+1 (earlier revisions are immutable) |
+| POST | `/organizations/:orgId/quotations/:id/withdraw` | MANAGE_QUOTATIONS |
+| GET | `/quotations` · `/quotations/:id` | customer (drafts hidden), or staff with MANAGE_QUOTATIONS / MESSAGE_CUSTOMERS |
+| POST | `/quotations/:id/accept` | customer. `{ revision, deliveryAddress }`. Must be the current revision → creates the order |
+| POST | `/quotations/:id/reject` | customer. `{ reason? }` |
+
+## Orders & payments
+
+| Method | Path | Who |
+|---|---|---|
+| GET | `/orders` · `/orders/:id` | customer, or seller staff (MANAGE_ORDERS / MESSAGE_CUSTOMERS). Seller view includes `sellerReceives` |
+| POST | `/orders/:id/pay` | customer → `{ authorizationUrl, reference }`. 409 `SELLER_PAYOUTS_NOT_READY` if the seller hasn't connected payouts |
+| POST | `/orders/:id/verify-payment` | participant. `{ reference }`. Speeds up confirmation; the webhook is the source of truth |
+| POST | `/orders/:id/cancel` | customer or seller (awaiting payment only) |
+| POST | `/orders/:id/confirm-delivery` | customer |
+| GET | `/organizations/:orgId/orders` | MANAGE_ORDERS |
+| PATCH | `/organizations/:orgId/orders/:id/status` | MANAGE_ORDERS. Allowed: PAID→PROCESSING→READY/SHIPPED→DELIVERED; PENDING_PAYMENT→CANCELLED |
+| POST | `/payments/paystack/webhook` | Paystack only (HMAC-SHA512 signature), outside `/api/v1` rate limits; re-verifies the charge with Paystack |
+| GET | `/payments/banks` | signed in |
+| GET/PUT | `/organizations/:orgId/payouts`, POST `/organizations/:orgId/payouts/resolve` | MANAGE_BILLING. Creates the Paystack subaccount; stores masked details only |
+| POST | `/payments/mock/:reference/complete` | development only (`PAYMENTS_PROVIDER=mock`) |
+
+## Planned
+
+`/reviews`, `/organizations/:orgId/members` (staff invitations), projects & installations.

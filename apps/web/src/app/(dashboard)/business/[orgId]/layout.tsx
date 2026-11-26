@@ -1,6 +1,6 @@
 'use client';
 
-import { BadgeCheck, Clock, ExternalLink, LayoutGrid, MessageSquare, Package, ShieldAlert, Store, Wrench } from 'lucide-react';
+import { BadgeCheck, Banknote, Clock, ExternalLink, FileText, LayoutGrid, MessageSquare, Package, Receipt, ShieldAlert, Store, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { useWorkspace, WorkspaceProvider } from '@/features/business/workspace-context';
@@ -25,7 +25,10 @@ function Shell({ children }: { children: React.ReactNode }) {
     { href: `${base}/profile`, label: 'Storefront', icon: Store },
     ...(o.types.includes('VENDOR') || ws.counts.productsPublished + ws.counts.productsDraft > 0 ? [{ href: `${base}/products`, label: 'Products', icon: Package }] : []),
     ...(o.types.includes('INSTALLER') || ws.counts.servicesPublished + ws.counts.servicesDraft > 0 ? [{ href: `${base}/services`, label: 'Services', icon: Wrench }] : []),
-    { href: `/messages?inbox=${o.id}`, label: 'Customer messages', icon: MessageSquare },
+    { href: `/messages?inbox=${o.id}`, label: 'Messages', icon: MessageSquare },
+    { href: `${base}/quotations`, label: 'Quotations', icon: FileText },
+    { href: `${base}/orders`, label: 'Orders', icon: Receipt },
+    { href: `${base}/payouts`, label: 'Payouts', icon: Banknote },
   ];
   const active = (href: string) => (href === base ? pathname === base : pathname.startsWith(href));
 

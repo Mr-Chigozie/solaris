@@ -18,6 +18,11 @@ export default function AdminFeaturesPage() {
         title="Feature toggles"
         description="Switch platform modules on or off without a redeploy. Only super admins can change these."
       />
+      <SettingsEditor
+        settingKey="commerce"
+        title="Commerce rules"
+        description="Marketplace commission (0.05 = 5%, deducted via the payment split from the pre-VAT order value), VAT rate for VAT-registered sellers, default quotation validity and how long unpaid orders stay open. Applies to new quotations and orders; existing ones keep the rates they were created with."
+      />
     </div>
   );
 }

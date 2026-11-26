@@ -20,6 +20,9 @@ import { businessRouter } from './modules/business/business.routes';
 import { marketplaceRouter } from './modules/marketplace/marketplace.routes';
 import { messagingRouter } from './modules/messaging/messaging.routes';
 import { uploadsRouter, uploadsStatic } from './modules/uploads/uploads.routes';
+import { ordersRouter } from './modules/commerce/orders.routes';
+import { quotationsRouter } from './modules/commerce/quotations.routes';
+import { paymentsRouter, paystackWebhook } from './modules/payments/payments.routes';
 
 export function createApp() {
   const app = express();
@@ -33,6 +36,8 @@ export function createApp() {
       credentials: true,
     }),
   );
+  // Payment webhooks need the raw body for signature checks — mount before the JSON parser.
+  app.use(paystackWebhook);
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
   if (env.NODE_ENV !== 'test') app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/health' } }));
@@ -63,6 +68,9 @@ export function createApp() {
   v1.use(marketplaceRouter);
   v1.use(messagingRouter);
   v1.use(uploadsRouter);
+  v1.use(quotationsRouter);
+  v1.use(ordersRouter);
+  v1.use(paymentsRouter);
   v1.use(adminRouter);
 
   app.use('/api/v1', v1);

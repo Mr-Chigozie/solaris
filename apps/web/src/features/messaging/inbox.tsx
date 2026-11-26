@@ -1,10 +1,11 @@
 'use client';
 
-import { ArrowLeft, BatteryFull, Cpu, Inbox as InboxIcon, Loader2, MessageSquare, Package, Send, SunMedium, Wrench } from 'lucide-react';
+import { ArrowLeft, BatteryFull, ChevronRight, Cpu, FilePlus2, FileText, Inbox as InboxIcon, Loader2, MessageSquare, Package, Receipt, Send, SunMedium, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/features/auth/auth-context';
+import { QuoteBuilder } from '@/features/commerce/quote-builder';
 import { OrgAvatar, VerifiedBadge } from '@/features/marketplace/cards';
 import { api, ApiError } from '@/lib/api';
 import { cn, formatNaira, formatNumber } from '@/lib/format';
@@ -27,7 +28,7 @@ interface Thread {
   organization: { id: string; name: string; slug: string; logoUrl: string | null; isPlatformOwned: boolean; verification: string };
   customer: { firstName: string; lastName: string };
   context: Record<string, unknown> & { type: 'PRODUCT' | 'SERVICE' | 'DESIGN' } | null;
-  messages: Array<{ id: string; body: string; fromBusiness: boolean; createdAt: string; senderName: string; mine: boolean }>;
+  messages: Array<{ id: string; body: string; fromBusiness: boolean; kind: 'TEXT' | 'QUOTATION' | 'ORDER' | 'SYSTEM'; refId: string | null; createdAt: string; senderName: string; mine: boolean }>;
 }
 
 const POLL_MS = 6000;
@@ -155,7 +156,9 @@ export function Inbox() {
 }
 
 function ThreadView({ id, onBack, onActivity }: { id: string; onBack: () => void; onActivity: () => void }) {
+  const router = useRouter();
   const [thread, setThread] = useState<Thread | null>(null);
+  const [quoting, setQuoting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
@@ -221,13 +224,58 @@ function ThreadView({ id, onBack, onActivity }: { id: string; onBack: () => void
           </div>
           {thread.subject && <p className="truncate text-xs text-ink-400">{thread.subject}</p>}
         </div>
+        {thread.side === 'business' && (
+          <button type="button" onClick={() => setQuoting(true)} className="btn btn-primary shrink-0 px-3 py-2 text-xs sm:px-4 sm:text-sm">
+            <FilePlus2 className="h-4 w-4" /> <span className="hidden sm:inline">Create quotation</span><span className="sm:hidden">Quote</span>
+          </button>
+        )}
       </header>
+      {quoting && (
+        <QuoteBuilder
+          organizationId={thread.organization.id}
+          conversationId={thread.id}
+          onClose={() => setQuoting(false)}
+          onSaved={(quoteId) => {
+            setQuoting(false);
+            router.push(`/quotes/${quoteId}`);
+          }}
+        />
+      )}
 
       {thread.context && <ContextCard context={thread.context} />}
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-5">
         {thread.messages.map((m, i) => {
           const showName = i === 0 || thread.messages[i - 1]!.fromBusiness !== m.fromBusiness;
+          if (m.kind === 'SYSTEM') {
+            return (
+              <p key={m.id} className="mx-auto max-w-md rounded-full bg-white/[0.04] px-4 py-1.5 text-center text-xs text-ink-400">
+                {m.body} · {when(m.createdAt)}
+              </p>
+            );
+          }
+          if ((m.kind === 'QUOTATION' || m.kind === 'ORDER') && m.refId) {
+            const isQuote = m.kind === 'QUOTATION';
+            return (
+              <div key={m.id} className={cn('flex flex-col', m.mine ? 'items-end' : 'items-start')}>
+                {showName && <span className="mb-1 px-1 text-[11px] text-ink-400">{m.mine ? 'You' : m.senderName}</span>}
+                <Link
+                  href={isQuote ? `/quotes/${m.refId}` : `/orders/${m.refId}`}
+                  className="group flex w-full max-w-sm items-center gap-3 rounded-2xl border border-sun-400/30 bg-gradient-to-br from-sun-400/[0.12] to-volt-500/[0.06] p-4 transition hover:border-sun-400/60"
+                >
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sun-400 text-ink-950">
+                    {isQuote ? <FileText className="h-5 w-5" /> : <Receipt className="h-5 w-5" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] font-bold uppercase tracking-wider text-sun-300">{isQuote ? 'Quotation' : 'Order update'}</span>
+                    <span className="block text-sm font-semibold text-white">{m.body}</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-ink-400 transition group-hover:translate-x-0.5" />
+                </Link>
+                <span className="mt-1 px-1 text-[10px] text-ink-400">{when(m.createdAt)}</span>
+              </div>
+            );
+          }
           return (
             <div key={m.id} className={cn('flex flex-col', m.mine ? 'items-end' : 'items-start')}>
               {showName && <span className="mb-1 px-1 text-[11px] text-ink-400">{m.mine ? 'You' : m.senderName}</span>}

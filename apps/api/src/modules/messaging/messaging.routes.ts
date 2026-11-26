@@ -167,7 +167,7 @@ messagingRouter.get('/conversations/:id', async (req, res) => {
       where: { conversationId: c.id },
       orderBy: { createdAt: 'asc' },
       take: 500,
-      select: { id: true, body: true, fromBusiness: true, createdAt: true, sender: { select: { firstName: true, lastName: true } } },
+      select: { id: true, body: true, fromBusiness: true, kind: true, refId: true, createdAt: true, sender: { select: { firstName: true, lastName: true } } },
     }),
     prisma.organization.findUnique({ where: { id: c.organizationId }, select: { id: true, name: true, slug: true, logoUrl: true, isPlatformOwned: true, verification: true } }),
     prisma.user.findUnique({ where: { id: c.customerId }, select: { firstName: true, lastName: true } }),
@@ -207,6 +207,8 @@ messagingRouter.get('/conversations/:id', async (req, res) => {
       id: m.id,
       body: m.body,
       fromBusiness: m.fromBusiness,
+      kind: m.kind,
+      refId: m.refId,
       createdAt: m.createdAt,
       // Customers see the business, not which staff member replied.
       senderName: m.fromBusiness ? (side === 'business' ? `${m.sender.firstName} ${m.sender.lastName}` : organization?.name) : `${m.sender.firstName} ${m.sender.lastName}`,
